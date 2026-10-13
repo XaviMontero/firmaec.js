@@ -5,3 +5,4 @@ oracle/lib
 oracle/classes
 *.log
 *.tgz
+oracle/lib-extra
