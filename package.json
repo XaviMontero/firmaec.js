@@ -1,5 +1,5 @@
 {
-  "name": "firmadigital-libreria-js",
+  "name": "firmaec.js",
   "version": "5.2.0",
   "description": "Port a TypeScript/Node.js de FirmaEC firmadigital-libreria: firma PAdES (PDF) y XAdES-BES (XML) con archivos .p12, sin Java",
   "main": "dist/index.js",

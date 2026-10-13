@@ -1,4 +1,6 @@
-# firmadigital-libreria-js
+# firmaec.js 👋☕
+
+> **FirmaEC en Node.js. Adiós Java.** Firmá PDFs y comprobantes del SRI con tu `.p12` usando solo JavaScript: sin JDK, sin Maven, sin `java -jar`.
 
 Port a TypeScript/Node.js de [FirmaEC `firmadigital-libreria`](https://minka.gob.ec/mintel/ge/firmaec/firmadigital-libreria) (MINTEL, Ecuador), versión 5.2.0, commit `014b327`. Firma documentos con un archivo `.p12`/`.pfx` sin depender de Java.
 
@@ -17,7 +19,7 @@ Requiere Node.js 18 o superior. Dependencias de runtime: `node-forge`, `pdf-lib`
 
 ```ts
 import fs from 'node:fs';
-import { firmarPdf, firmarXml } from 'firmadigital-libreria-js';
+import { firmarPdf, firmarXml } from 'firmaec.js';
 
 const p12 = fs.readFileSync('firma.p12');
 
@@ -45,7 +47,7 @@ const xml = await firmarXml(fs.readFileSync('factura.xml'), p12, 'clave');
 Las clases con los nombres de Java también se exportan:
 
 ```ts
-import { KeyStore, PadesBasicSigner, XAdESSigner, getDatosUsuarios } from 'firmadigital-libreria-js';
+import { KeyStore, PadesBasicSigner, XAdESSigner, getDatosUsuarios } from 'firmaec.js';
 
 const entry = KeyStore.fromPkcs12(p12, 'clave').getEntry(); // o getEntry(alias), getSigningAliases()
 const firmado = await new PadesBasicSigner().sign(pdfBytes, entry.privateKey, entry.chain, propiedades);
