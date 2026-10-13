@@ -54,15 +54,25 @@ export class XAdESSigner {
     certificate: Certificate,
     options: XadesSignOptions = {},
   ): Promise<Buffer> {
-    const xml = Buffer.from(data).toString('utf8');
+    const encoding = detectEncoding(Buffer.from(data));
+    const xml = decode(Buffer.from(data), encoding);
     const errors: string[] = [];
-    const doc: XNode = new DOMParser({
-      onError: (level: string, msg: string) => {
-        if (level !== 'warning') errors.push(msg);
-      },
-    }).parseFromString(xml, 'text/xml');
+    let doc: XNode;
+    try {
+      doc = new DOMParser({
+        onError: (level: string, msg: string) => {
+          if (level !== 'warning') errors.push(msg);
+        },
+      }).parseFromString(xml, 'text/xml');
+    } catch (e) {
+      throw new InvalidFormatException('Documento XML inválido: ' + (e as Error).message, { cause: e });
+    }
     if (errors.length || !doc?.documentElement) {
       throw new InvalidFormatException('Documento XML inválido: ' + errors.join('; '));
+    }
+    if (doc.doctype) {
+      // DSS parses with secure processing: DOCTYPE declarations are not allowed
+      throw new InvalidFormatException('Documento XML inválido: DOCTYPE no permitido');
     }
     const root = doc.documentElement;
     const target = findById(root, COMPROBANTE_ID);
@@ -127,8 +137,60 @@ export class XAdESSigner {
       : crypto.sign('sha256', Buffer.from(signedInfoC14n, 'utf8'), privateKey);
     byLocal('SignatureValue', DS)[0].appendChild(doc.createTextNode(value.toString('base64')));
 
-    return Buffer.from(serializeLikeDss(doc), 'utf8');
+    return encode(serializeLikeDss(doc, encoding.name), encoding);
   }
+}
+
+interface XmlEncoding {
+  /** Name written in the XML declaration. */
+  name: string;
+  kind: 'utf8' | 'latin1' | 'ascii' | 'utf16le' | 'utf16be';
+}
+
+/** Encoding from the BOM or the XML declaration (UTF-8 by default), as a JAXP parser does. */
+function detectEncoding(b: Buffer): XmlEncoding {
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return { name: 'UTF-8', kind: 'utf8' };
+  if (b[0] === 0xff && b[1] === 0xfe) return { name: 'UTF-16', kind: 'utf16le' };
+  if (b[0] === 0xfe && b[1] === 0xff) return { name: 'UTF-16', kind: 'utf16be' };
+  const m = /^<\?xml[^>]*encoding\s*=\s*["']([A-Za-z0-9._-]+)["']/.exec(b.subarray(0, 200).toString('latin1'));
+  if (!m) return { name: 'UTF-8', kind: 'utf8' };
+  const n = m[1].toUpperCase();
+  if (n === 'UTF-8' || n === 'UTF8') return { name: m[1], kind: 'utf8' };
+  if (['ISO-8859-1', 'ISO8859-1', 'ISO_8859-1', 'LATIN1', 'L1'].includes(n)) return { name: m[1], kind: 'latin1' };
+  if (n === 'US-ASCII' || n === 'ASCII') return { name: m[1], kind: 'ascii' };
+  throw new InvalidFormatException('Codificación XML no soportada: ' + m[1]);
+}
+
+function decode(b: Buffer, enc: XmlEncoding): string {
+  switch (enc.kind) {
+    case 'utf8':
+      return new TextDecoder('utf-8', { ignoreBOM: false }).decode(b);
+    case 'latin1':
+    case 'ascii':
+      return b.toString('latin1');
+    case 'utf16le':
+      return b.subarray(2).toString('utf16le');
+    case 'utf16be': {
+      const c = Buffer.from(b.subarray(2));
+      c.swap16();
+      return c.toString('utf16le');
+    }
+  }
+}
+
+/** Encodes the output; characters outside the charset become character references. */
+function encode(s: string, enc: XmlEncoding): Buffer {
+  const max = enc.kind === 'latin1' ? 0xff : enc.kind === 'ascii' ? 0x7f : Infinity;
+  if (max !== Infinity) {
+    s = s.replace(/[\s\S]/gu, (c) => (c.codePointAt(0)! > max ? `&#${c.codePointAt(0)};` : c));
+    return Buffer.from(s, 'latin1');
+  }
+  if (enc.kind === 'utf16le' || enc.kind === 'utf16be') {
+    const b = Buffer.from('\ufeff' + s, 'utf16le');
+    if (enc.kind === 'utf16be') b.swap16();
+    return b;
+  }
+  return Buffer.from(s, 'utf8');
 }
 
 function sha(bits: 256 | 512, s: string): string {
@@ -163,10 +225,32 @@ function deterministicId(signingTime: Date, certificate: Certificate): string {
   );
 }
 
+/** Java string order (UTF-16 code units). */
+const javaCompare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Xerces keeps attributes sorted by name and the serializer writes the
+ * namespace declarations first.
+ */
+function sortAttributes(node: XNode): void {
+  if (node.nodeType !== 1) return;
+  const attrs = Array.from(node.attributes as ArrayLike<XNode>);
+  const isNs = (a: XNode) => a.nodeName === 'xmlns' || a.nodeName.startsWith('xmlns:');
+  const sorted = [...attrs].sort((a, b) =>
+    isNs(a) !== isNs(b) ? (isNs(a) ? -1 : 1) : javaCompare(a.nodeName, b.nodeName),
+  );
+  if (sorted.some((a, i) => a !== attrs[i])) {
+    for (const a of attrs) node.removeAttributeNode(a);
+    for (const a of sorted) node.setAttributeNode(a);
+  }
+  for (let c = node.firstChild; c; c = c.nextSibling) sortAttributes(c);
+}
+
 /** Serializes like DSS (JAXP transformer): XML declaration with standalone="no", root right after it. */
-function serializeLikeDss(doc: XNode): string {
+function serializeLikeDss(doc: XNode, encodingName: string): string {
+  sortAttributes(doc.documentElement);
   const ser = new XMLSerializer();
-  let out = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>';
+  let out = `<?xml version="1.0" encoding="${encodingName}" standalone="no"?>`;
   for (let n = doc.firstChild; n; n = n.nextSibling) {
     if (n.nodeType === 7 && n.target === 'xml') continue; // the original declaration
     if (n.nodeType === 3) continue; // whitespace between top level nodes is not kept by the transformer
