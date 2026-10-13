@@ -36,7 +36,7 @@ export function getSubjectAlternativeName(cert: Certificate, oid: string): strin
     const object = parseDer(value, false);
     if (isUniversal(object, Tag.SEQUENCE)) {
       if (decodeOid(object.children[0].value) === oid) {
-        return bcToString(object.children[1]).replace('[0]', '').replace('[CONTEXT 0]', '');
+        return bcToString(object.children[1]).replaceAll('[0]', '').replaceAll('[CONTEXT 0]', ''); // Java String.replace = replace all
       }
     }
     if (object.tagClass !== TagClass.UNIVERSAL && object.constructed && object.children.length === 1) {
@@ -146,4 +146,19 @@ export function getEmail(cert: Certificate | null): string | null {
 export function verifySignature(cert: Certificate, root: Certificate | null): boolean {
   if (!root) return false;
   return cert.isSignedBy(root);
+}
+
+/** Port of `CertUtils.getExtensionOIDs` (critical + non critical). */
+export function getExtensionOIDs(cert: Certificate): string[] {
+  return [...cert.extensions.keys()];
+}
+
+/** Port of `CertUtils.hasExtensionMatchingPattern`. */
+export function hasExtensionMatchingPattern(cert: Certificate, prefix: string, suffix: string): boolean {
+  return getExtensionOIDs(cert).some((oid) => oid.startsWith(prefix) && oid.endsWith(suffix));
+}
+
+/** Port of `CertUtils.hasCertificatePoliciesMatchingPattern`. */
+export function hasCertificatePoliciesMatchingPattern(cert: Certificate, prefix: string, suffix: string): boolean {
+  return cert.getPolicyOids().some((oid) => oid.startsWith(prefix) && oid.endsWith(suffix));
 }
