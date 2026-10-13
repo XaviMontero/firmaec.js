@@ -1,0 +1,6 @@
+node_modules
+dist
+scratch
+oracle/lib
+oracle/classes
+*.log

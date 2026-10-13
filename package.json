@@ -1,0 +1,47 @@
+{
+  "name": "firmadigital-libreria-js",
+  "version": "5.2.0",
+  "description": "Port a TypeScript/Node.js de FirmaEC firmadigital-libreria: firma PAdES (PDF) y XAdES-BES (XML) con archivos .p12, sin Java",
+  "main": "dist/index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "vitest run test/e2e",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@xmldom/xmldom": "^0.9.12",
+    "node-forge": "^1.4.0",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "xml-crypto": "^6.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/node-forge": "^1.3.14",
+    "@types/qrcode": "^1.5.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "resources"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
