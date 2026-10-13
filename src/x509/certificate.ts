@@ -55,7 +55,7 @@ export class X500Name {
     return bcValueToString(rdn[0].value);
   }
 
-  /** JDK `X500Principal.getName()` (RFC 2253). */
+  /** JDK `X500Principal.getName()` (RFC 2253, JDK 21 semantics). */
   toRfc2253(): string {
     return [...this.rdns]
       .reverse()
@@ -123,7 +123,18 @@ function javaAvaToRfc2253(atv: AttributeTypeAndValue): string {
   if (/^[0-9]/.test(keyword) || !isString) {
     return keyword + '=#' + atv.value.raw.toString('hex');
   }
-  const valStr = new TextDecoder('utf-8').decode(atv.value.value);
+  // JDK 21+: decoded with the charset of the string type (JDK 17 always used UTF-8)
+  const v = atv.value;
+  let valStr: string;
+  if (v.tag === Tag.BMP_STRING) {
+    const b = Buffer.from(v.value);
+    if (b.length % 2 === 0) b.swap16();
+    valStr = b.toString('utf16le');
+  } else if (v.tag === Tag.UTF8_STRING) {
+    valStr = new TextDecoder('utf-8').decode(v.value);
+  } else {
+    valStr = v.value.toString('latin1');
+  }
   const escapees = ',=+<>#;"\\';
   let sb = '';
   for (const c of valStr) {

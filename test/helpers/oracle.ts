@@ -11,7 +11,14 @@ import { toPem } from './pki.js';
 
 const ORACLE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../oracle/oracle.sh');
 
-export const oracleAvailable = fs.existsSync(path.resolve(path.dirname(ORACLE), 'classes/Oracle.class'));
+const built = fs.existsSync(path.resolve(path.dirname(ORACLE), 'classes/Oracle.class'));
+if (!built && !process.env.FIRMAEC_SKIP_ORACLE) {
+  throw new Error(
+    'El oráculo Java no está compilado: ejecutar `npm run setup:oracle` (o FIRMAEC_SKIP_ORACLE=1 para omitir los tests de paridad)',
+  );
+}
+/** Parity / e2e tests need the Java oracle; they are only skipped when FIRMAEC_SKIP_ORACLE is set. */
+export const oracleAvailable = built;
 
 export function oracle<T = unknown>(...args: string[]): T {
   const out = execFileSync(ORACLE, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

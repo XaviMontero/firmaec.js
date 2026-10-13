@@ -4,3 +4,4 @@ scratch
 oracle/lib
 oracle/classes
 *.log
+*.tgz
