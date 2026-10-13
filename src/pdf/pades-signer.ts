@@ -172,7 +172,8 @@ export abstract class BasePdfSigner {
       }
     }
     if (page === 0 || page < 0 || page > pages.length) page = pages.length;
-    const pageObj = pages[page - 1];
+    // Java only calls setPageNumber(page) for visible signatures; iText's default page is 1
+    const pageObj = typeSig !== null ? pages[page - 1] : pages[0];
 
     const signaturePositionOnPage = getPositionOnPage(extraParams);
     let rect: Rect = { x: 0, y: 0, width: 0, height: 0 };

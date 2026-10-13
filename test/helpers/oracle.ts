@@ -90,3 +90,16 @@ export function jsX500(certDer: Buffer) {
     email: getEmail(c),
   };
 }
+
+/** Async variant (needed when the oracle talks to a server running in this process, e.g. the TSA). */
+export async function oracleAsync<T = unknown>(...args: string[]): Promise<T> {
+  const { execFile } = await import('node:child_process');
+  const out = await new Promise<string>((resolve, reject) =>
+    execFile(ORACLE, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (err, stdout) =>
+      err ? reject(err) : resolve(stdout),
+    ),
+  );
+  const line = out.trim().split('\n').filter((l) => l.startsWith('{') || l.startsWith('[')).pop();
+  if (!line) throw new Error('oracle sin salida JSON: ' + out);
+  return JSON.parse(line) as T;
+}

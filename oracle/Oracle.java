@@ -46,9 +46,26 @@ public class Oracle {
 
     public static void main(String[] args) throws Exception {
         java.util.logging.LogManager.getLogManager().reset();
+        ec.gob.firmadigital.libreria.utils.BouncyCastleUtils.initializeBouncyCastle();
+        try {
+            run(args);
+        } catch (Throwable t) {
+            StringBuilder msg = new StringBuilder();
+            for (Throwable c = t; c != null; c = c.getCause()) {
+                msg.append(msg.length() > 0 ? " <- " : "").append(c.getClass().getSimpleName()).append(": ").append(c.getMessage());
+            }
+            System.out.println("{\"error\":" + q(msg.toString()) + "}");
+        }
+    }
+
+    static void run(String[] args) throws Exception {
         switch (args[0]) {
             case "sign-pdf" -> signPdf(args[1], args[2], args[3], args[4], args.length > 5 ? args[5] : null);
             case "sign-xml" -> signXml(args[1], args[2], args[3], args[4]);
+            case "sign-pdf-enhanced" -> {
+                ec.gob.firmadigital.libreria.utils.PropertiesUtils.getConfig().setProperty("tsa_url", args[6]);
+                signPdfWith(true, args[1], args[2], args[3], args[4], args[5]);
+            }
             case "datos" -> {
                 StringBuilder sb = new StringBuilder("[");
                 for (int i = 1; i < args.length; i++) sb.append(i > 1 ? "," : "").append(datos(args[i]));
@@ -83,6 +100,10 @@ public class Oracle {
     }
 
     static void signPdf(String p12, String pass, String in, String out, String propsFile) throws Exception {
+        signPdfWith(false, p12, pass, in, out, propsFile);
+    }
+
+    static void signPdfWith(boolean enhanced, String p12, String pass, String in, String out, String propsFile) throws Exception {
         Entry e = load(p12, pass);
         Properties props = new Properties();
         if (propsFile != null) {
@@ -90,8 +111,16 @@ public class Oracle {
                 props.load(new java.io.InputStreamReader(pin, java.nio.charset.StandardCharsets.UTF_8));
             }
         }
-        PadesBasicSigner signer = new PadesBasicSigner(new PrivateKeySigner(e.key(), DigestAlgorithm.SHA256));
-        byte[] signed = signer.sign(new ByteArrayInputStream(Files.readAllBytes(Path.of(in))), e.key(), e.chain(), props);
+        PrivateKeySigner pks = new PrivateKeySigner(e.key(), DigestAlgorithm.SHA256);
+        byte[] signed;
+        if (enhanced) {
+            signed = new ec.gob.firmadigital.libreria.sign.pdf.PadesEnhancedSigner(pks).sign(new ByteArrayInputStream(Files.readAllBytes(Path.of(in))), e.key(), e.chain(), props);
+            Files.write(Path.of(out), signed);
+            System.out.println("{\"ok\":true}");
+            return;
+        }
+        PadesBasicSigner signer = new PadesBasicSigner(pks);
+        signed = signer.sign(new ByteArrayInputStream(Files.readAllBytes(Path.of(in))), e.key(), e.chain(), props);
         Files.write(Path.of(out), signed);
         System.out.println("{\"ok\":true}");
     }
@@ -173,6 +202,9 @@ public class Oracle {
                         .append(",\"reason\":").append(q(p7.getReason()))
                         .append(",\"location\":").append(q(p7.getLocation()))
                         .append(",\"filter\":").append(q(String.valueOf(p7.getFilterSubtype())))
+                        .append(",\"timestamp\":").append(p7.getTimeStampTokenInfo() != null)
+                        .append(",\"timestampImprint\":").append(p7.getTimeStampTokenInfo() != null && p7.verifyTimestampImprint())
+                        .append(",\"timestampDate\":").append(p7.getTimeStampTokenInfo() != null ? q(iso.format(p7.getTimeStampDate().getTime())) : "null")
                         .append('}');
             }
             sb.append("],\"pages\":").append(doc.getNumberOfPages());

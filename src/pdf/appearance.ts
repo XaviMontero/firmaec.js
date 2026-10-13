@@ -79,37 +79,48 @@ function isSplitChar(c: string): boolean {
   return c <= ' ' || c === '-' || c === '‐' || (c >= ' ' && c <= '​');
 }
 
-/** Breaks a paragraph into lines that fit `width` (iText TextRenderer behaviour). */
+/**
+ * Breaks a paragraph into lines that fit `width` (iText TextRenderer behaviour).
+ * A line ended by '\n' keeps a trailing space: iText draws the newline with the
+ * space glyph. Trailing spaces never count for the fitting.
+ */
 export function breakLines(text: string, font: LayoutFont, size: number, width: number): string[] {
   const lines: string[] = [];
-  for (const segment of text.split('\n')) {
-    // a trailing newline does not produce an empty line in iText
-    if (segment === '' && lines.length > 0 && segment === text.split('\n').at(-1)) continue;
+  // an empty paragraph produces no line at all in iText
+  if (text === '') return lines;
+  const fits = (s: string) => font.width(s.replace(/ +$/, ''), size) <= width + 1e-4;
+  const segments = text.split('\n');
+  segments.forEach((segment, idx) => {
+    const endsWithNewline = idx < segments.length - 1;
+    // a trailing newline does not produce an empty last line
+    if (segment === '' && idx === segments.length - 1 && idx > 0) return;
+    const segLines: string[] = [];
     let rest = segment;
     while (true) {
-      if (font.width(rest.replace(/ +$/, ''), size) <= width + 1e-4) {
-        lines.push(rest);
+      if (fits(rest)) {
+        segLines.push(rest);
         break;
       }
       // longest prefix ending at a split char that fits
       let cut = -1;
       for (let i = 0; i < rest.length; i++) {
         if (isSplitChar(rest[i])) {
-          const candidate = rest.substring(0, i + 1);
-          if (font.width(candidate.replace(/ +$/, ''), size) <= width + 1e-4) cut = i + 1;
+          if (fits(rest.substring(0, i + 1))) cut = i + 1;
           else break;
         }
       }
       if (cut <= 0) {
         // word longer than the line: split by characters
         cut = 1;
-        while (cut < rest.length && font.width(rest.substring(0, cut + 1), size) <= width + 1e-4) cut++;
+        while (cut < rest.length && fits(rest.substring(0, cut + 1))) cut++;
       }
-      lines.push(rest.substring(0, cut));
+      segLines.push(rest.substring(0, cut));
       rest = rest.substring(cut);
       if (rest === '') break;
     }
-  }
+    if (endsWithNewline) segLines[segLines.length - 1] += ' ';
+    lines.push(...segLines);
+  });
   return lines;
 }
 
