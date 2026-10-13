@@ -8,10 +8,10 @@
  * License, or (at your option) any later version.
  */
 
-import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, PDFFont, PDFName, PDFRef } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFRef } from 'pdf-lib';
 import QRCode from 'qrcode';
 import { loadResource } from '../utils/resources.js';
+import { PdfTrueTypeFont, TrueTypeFont } from './ttf.js';
 
 /**
  * Ports of `sign.pdf.appearance.{QrAppereance, Information1Appearance, Information2Appearance}`.
@@ -26,46 +26,35 @@ export interface Rect {
   height: number;
 }
 
+const parsedFonts = new Map<string, TrueTypeFont>();
+
 /** Font with the metrics iText uses for layout (1000 units, truncated to int). */
 export class LayoutFont {
-  private readonly widths = new Map<number, number>();
-
-  private constructor(
-    readonly pdfFont: PDFFont,
-    private readonly fk: any,
-    readonly ascent: number,
-    readonly descent: number,
-  ) {}
+  private constructor(readonly pdfFont: PdfTrueTypeFont) {}
 
   static async embed(doc: PDFDocument, resource: string): Promise<LayoutFont> {
-    const bytes = loadResource(resource);
-    doc.registerFontkit(fontkit);
-    const pdfFont = await doc.embedFont(bytes, { subset: true });
-    const fk = (fontkit as any).create(bytes);
-    const upm = fk.unitsPerEm;
-    const os2 = fk['OS/2'];
-    // iText TrueTypeFont: usWinAscent / usWinDescent scaled to 1000 units (int)
-    const ascent = Math.trunc((os2.winAscent * 1000) / upm);
-    const descent = -Math.trunc((os2.winDescent * 1000) / upm);
-    return new LayoutFont(pdfFont, fk, ascent, descent);
+    let ttf = parsedFonts.get(resource);
+    if (!ttf) {
+      ttf = new TrueTypeFont(loadResource(resource));
+      parsedFonts.set(resource, ttf);
+    }
+    return new LayoutFont(new PdfTrueTypeFont(ttf, doc.context));
   }
 
-  /** Text width in points, iText style (per glyph widths in 1000 units, truncated). */
+  get ascent(): number {
+    return this.pdfFont.layoutAscent;
+  }
+
+  get descent(): number {
+    return this.pdfFont.layoutDescent;
+  }
+
   width(text: string, size: number): number {
-    let w = 0;
-    for (const glyph of this.fk.layout(text).glyphs) {
-      let gw = this.widths.get(glyph.id);
-      if (gw === undefined) {
-        gw = Math.trunc((glyph.advanceWidth * 1000) / this.fk.unitsPerEm);
-        this.widths.set(glyph.id, gw);
-      }
-      w += gw;
-    }
-    return (w * size) / 1000;
+    return this.pdfFont.width(text, size);
   }
 
   encode(text: string): string {
-    return this.pdfFont.encodeText(text).toString();
+    return this.pdfFont.encode(text);
   }
 }
 
@@ -173,6 +162,8 @@ export interface AppearanceStream {
   content: string;
   fonts: Map<string, PDFRef>;
   images: Map<string, PDFRef>;
+  /** Fonts to embed once the content is final (subset of the used glyphs). */
+  fontObjects: PdfTrueTypeFont[];
 }
 
 function textOps(lines: PlacedLine[], fontNames: Map<LayoutFont, string>): string {
@@ -271,7 +262,7 @@ export class QrAppearance implements CustomAppearance {
       textRect,
     );
     content += textOps(lines, names);
-    return { content, fonts: fontRefs(names), images: new Map([['Im1', ref]]) };
+    return { content, fonts: fontRefs(names), images: new Map([['Im1', ref]]), fontObjects: fonts.map((f) => f.pdfFont) };
   }
 }
 
@@ -295,7 +286,7 @@ export class Information1Appearance implements CustomAppearance {
       ],
       { x: 0, y: 0, width: rect.width, height: rect.height },
     );
-    return { content: textOps(lines, names), fonts: fontRefs(names), images: new Map() };
+    return { content: textOps(lines, names), fonts: fontRefs(names), images: new Map(), fontObjects: fonts.map((f) => f.pdfFont) };
   }
 }
 
@@ -323,7 +314,7 @@ export class Information2Appearance implements CustomAppearance {
       ],
       { x: 0, y: 0, width: rect.width, height: rect.height },
     );
-    return { content: textOps(lines, names), fonts: fontRefs(names), images: new Map() };
+    return { content: textOps(lines, names), fonts: fontRefs(names), images: new Map(), fontObjects: fonts.map((f) => f.pdfFont) };
   }
 }
 

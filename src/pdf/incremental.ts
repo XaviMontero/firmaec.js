@@ -32,7 +32,10 @@ export class IncrementalPdf {
     this.doc = doc;
     this.prevStartXref = findStartXref(original);
     this.usesXrefStream = !/^\s*xref/.test(original.subarray(this.prevStartXref, this.prevStartXref + 16).toString('latin1'));
-    this.originalLargest = doc.context.largestObjectNumber;
+    // pdf-lib drops ObjStm / XRef stream objects while parsing: never reuse their numbers
+    const trailerSize = findTrailerSize(original, this.prevStartXref);
+    this.originalLargest = Math.max(doc.context.largestObjectNumber, trailerSize - 1);
+    doc.context.largestObjectNumber = this.originalLargest;
   }
 
   static async load(bytes: Uint8Array): Promise<IncrementalPdf> {
@@ -172,6 +175,15 @@ function groups(sorted: Array<[number, number]>): Array<[number, Array<[number, 
     else out.push([entry[0], [entry]]);
   }
   return out;
+}
+
+/** /Size of the last cross-reference section (trailer dictionary or xref stream dictionary). */
+export function findTrailerSize(bytes: Buffer, startXref: number): number {
+  const text = bytes.subarray(startXref).toString('latin1');
+  const isTable = /^\s*xref/.test(text);
+  const from = isTable ? text.indexOf('trailer') : 0;
+  const m = from >= 0 ? /\/Size\s+(\d+)/.exec(text.substring(from)) : null;
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 export function findStartXref(bytes: Buffer): number {
