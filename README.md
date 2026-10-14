@@ -1,5 +1,10 @@
 # firmaec.js 👋☕
 
+[![npm version](https://img.shields.io/npm/v/firmaec.js.svg)](https://www.npmjs.com/package/firmaec.js)
+[![npm downloads](https://img.shields.io/npm/dm/firmaec.js.svg)](https://www.npmjs.com/package/firmaec.js)
+[![node](https://img.shields.io/node/v/firmaec.js.svg)](https://www.npmjs.com/package/firmaec.js)
+[![license](https://img.shields.io/npm/l/firmaec.js.svg)](LICENSE)
+
 > **FirmaEC en Node.js. Adiós Java.** Firmá PDFs y comprobantes del SRI con tu `.p12` usando solo JavaScript: sin JDK, sin Maven, sin `java -jar`.
 
 Port a TypeScript/Node.js de [FirmaEC `firmadigital-libreria`](https://minka.gob.ec/mintel/ge/firmaec/firmadigital-libreria) (MINTEL, Ecuador), versión 5.2.0, commit `014b327`. Firma documentos con un archivo `.p12`/`.pfx` sin depender de Java.
@@ -14,6 +19,14 @@ Port a TypeScript/Node.js de [FirmaEC `firmadigital-libreria`](https://minka.gob
 | Lectura de `.p12` (incluye 3DES/RC2 legacy) | `KeyStore` PKCS12 | `KeyStore.fromPkcs12()` |
 
 Requiere Node.js 18 o superior. Dependencias de runtime: `node-forge`, `pdf-lib`, `qrcode`, `@xmldom/xmldom` y `xml-crypto`.
+
+## Instalación
+
+```bash
+npm install firmaec.js
+```
+
+También funciona con `yarn add firmaec.js` o `pnpm add firmaec.js`.
 
 ## Uso
 
