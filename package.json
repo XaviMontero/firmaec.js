@@ -12,9 +12,32 @@
     "test:e2e": "vitest run test/e2e",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "setup:oracle": "bash scripts/setup-oracle.sh",
-    "test:unit": "FIRMAEC_SKIP_ORACLE=1 vitest run test/unit"
+    "test:unit": "FIRMAEC_SKIP_ORACLE=1 vitest run test/unit",
+    "prepublishOnly": "npm run build"
   },
   "license": "AGPL-3.0-or-later",
+  "author": "Xavier Montero",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XaviMontero/firmaec.js.git"
+  },
+  "homepage": "https://github.com/XaviMontero/firmaec.js#readme",
+  "bugs": {
+    "url": "https://github.com/XaviMontero/firmaec.js/issues"
+  },
+  "keywords": [
+    "firmaec",
+    "firma-electronica",
+    "pades",
+    "xades-bes",
+    "sri",
+    "ecuador",
+    "p12",
+    "pkcs12",
+    "pdf",
+    "xml-signature",
+    "digital-signature"
+  ],
   "type": "module",
   "dependencies": {
     "@xmldom/xmldom": "^0.9.12",
